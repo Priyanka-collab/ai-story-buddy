@@ -13,36 +13,42 @@ export default function StoryWithImages() {
   const [prompt, setPrompt] = useState("");
   const [story, setStory] = useState("");
   const [images, setImages] = useState<string[]>([]);
-  const [language, setLanguage] = useState("en"); // 'en' or 'hi'
+  const [language, setLanguage] = useState("en"); // 'en', 'hi', 'te'
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [inputsDisabled, setInputsDisabled] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isStoryGenerated, setIsStoryGenerated] = useState(false);
 
   const openRouterKey = import.meta.env.VITE_OPENROUTER_API_KEY!;
   const unsplashAccessKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY!;
   const recognitionRef = useRef<any>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-useEffect(() => {
-  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  if (!SpeechRecognition) return;
-
-  const recognition = new SpeechRecognition();
-  recognition.lang = language === "hi" ? "hi-IN" : "en-US";
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-
-  recognition.onresult = (event: any) => {
-    const transcript = event.results[0][0].transcript;
-    setPrompt(transcript);
-    setListening(false);
+  const getLangCode = (lang: string) => {
+    return lang === "hi" ? "hi-IN" : lang === "te" ? "te-IN" : "en-US";
   };
 
-  recognition.onerror = () => setListening(false);
-  recognition.onend = () => setListening(false);
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
 
-  recognitionRef.current = recognition;
-}, [language]);
+    const recognition = new SpeechRecognition();
+    recognition.lang = getLangCode(language);
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
 
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setPrompt(transcript);
+      setListening(false);
+    };
+
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+
+    recognitionRef.current = recognition;
+  }, [language]);
 
   async function generateStoryAndImages() {
     if (!prompt.trim()) return;
@@ -51,15 +57,20 @@ useEffect(() => {
     setLoading(true);
     setStory("");
     setImages([]);
+    setIsStoryGenerated(false);
     stopSpeech();
 
     try {
-      const langName = language === "hi" ? "Hindi" : "English";
-
+      const langLabel = language === "hi" ? "Hindi" : language === "te" ? "Telugu (native script)" : "English";
       const storyPrompt = `
-You are a fun children's storyteller. Create a short story suitable for a 6-year-old in ${langName}.
+You are a creative children's storyteller. Write a fun and imaginative story for a 6-year-old in ${langLabel}.
 Topic: ${prompt}
+
+Make the story at least 6 paragraphs long. 
+Use simple, playful language and break it into small, easy-to-read paragraphs.
+Add engaging moments and emotional depth (like surprise, fun, friendship, curiosity).
 `;
+
 
       const storyRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -68,17 +79,17 @@ Topic: ${prompt}
           Authorization: `Bearer ${openRouterKey}`,
         },
         body: JSON.stringify({
-          model: "mistralai/mistral-7b-instruct",
+          model: "deepseek/deepseek-chat-v3-0324",
           messages: [{ role: "user", content: storyPrompt }],
         }),
       });
 
       const storyData = await storyRes.json();
-
       if (!storyRes.ok) throw new Error(storyData?.error?.message || "Story generation failed.");
 
       const storyText = storyData.choices[0].message.content;
       setStory(storyText);
+      setIsStoryGenerated(true);
 
       const keywords = extractKeywords(prompt).slice(0, 5);
       const fetchedImages: string[] = [];
@@ -98,77 +109,103 @@ Topic: ${prompt}
       setImages(fetchedImages);
 
       const utterance = new SpeechSynthesisUtterance(storyText);
-      utterance.lang = language === "hi" ? "hi-IN" : "en-US";
+      utterance.lang = getLangCode(language);
       utterance.voice = speechSynthesis.getVoices().find(v => v.lang === utterance.lang) || null;
+      utterance.onend = () => setIsPaused(false);
+      utteranceRef.current = utterance;
       speechSynthesis.speak(utterance);
     } catch (err: any) {
       alert(err.message);
     } finally {
       setLoading(false);
-      setInputsDisabled(false);
-    }
-  }
-
-  function startListening() {
-    if (recognitionRef.current) {
-      setListening(true);
-      recognitionRef.current.lang = language === "hi" ? "hi-IN" : "en-US";
-      recognitionRef.current.start();
     }
   }
 
   function stopSpeech() {
     if (speechSynthesis.speaking) speechSynthesis.cancel();
+    setIsPaused(false);
+  }
+
+  function startListening() {
+    if (recognitionRef.current) {
+      setListening(true);
+      recognitionRef.current.lang = getLangCode(language);
+      recognitionRef.current.start();
+    }
+  }
+
+  function togglePauseResume() {
+    if (speechSynthesis.speaking) {
+      if (speechSynthesis.paused) {
+        speechSynthesis.resume();
+        setIsPaused(false);
+      } else {
+        speechSynthesis.pause();
+        setIsPaused(true);
+      }
+    }
+  }
+
+  function clearAll() {
+    stopSpeech();
+    setPrompt("");
+    setStory("");
+    setImages([]);
+    setIsPaused(false);
+    setIsStoryGenerated(false);
+    setInputsDisabled(false);
+  }
+
+  function downloadStory() {
+    const blob = new Blob([story], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "story.txt";
+    link.click();
   }
 
   const storyParagraphs = story.split(/\n+/).filter(p => p.trim());
 
   return (
     <div style={{ maxWidth: 700, margin: "auto", padding: 20, fontFamily: "Arial" }}>
-      <h1>AI Story Buddy 🌟</h1>
+      <h1>🎙️ AI Story Buddy 🌟</h1>
 
       <label>
         Select Language:{" "}
         <select
           value={language}
           onChange={(e) => setLanguage(e.target.value)}
-          disabled={inputsDisabled}
+          disabled={inputsDisabled || isStoryGenerated}
           style={{ padding: 6, marginBottom: 10 }}
         >
           <option value="en">English</option>
           <option value="hi">Hindi</option>
+          <option value="te">Telugu</option>
         </select>
       </label>
 
-      <br />
-
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-  <input
-    type="text"
-    value={prompt}
-    onChange={(e) => setPrompt(e.target.value)}
-    placeholder="e.g., A tiger who loved books"
-    disabled={inputsDisabled}
-    style={{ flex: 1, padding: 8, fontSize: 16 }}
-  />
-  <button
-    onClick={startListening}
-    disabled={inputsDisabled || listening}
-    style={{ fontSize: 20, padding: "8px 12px", cursor: "pointer" }}
-  >
-    🎤
-  </button>
-</div>
-
-
-
-      <br />
+        <input
+          type="text"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="e.g., A monkey and a mouse adventure"
+          disabled={inputsDisabled}
+          style={{ flex: 1, padding: 8, fontSize: 16 }}
+        />
+        <button
+          onClick={startListening}
+          disabled={inputsDisabled || listening}
+          style={{ fontSize: 20, padding: "8px 12px", cursor: "pointer" }}
+        >
+          🎤
+        </button>
+      </div>
 
       <button
         onClick={generateStoryAndImages}
-        disabled={inputsDisabled || !prompt.trim()}
+        disabled={!prompt.trim() || loading || inputsDisabled}
         style={{
-          marginTop: 12,
           padding: "10px 20px",
           fontSize: 16,
           backgroundColor: "#007acc",
@@ -180,19 +217,64 @@ Topic: ${prompt}
         {loading ? "Generating..." : "Generate Story"}
       </button>
 
-      <button
-        onClick={stopSpeech}
-        disabled={inputsDisabled || !story}
-        style={{
-          padding: "10px 20px",
-          fontSize: 16,
-          backgroundColor: "#cc3300",
-          color: "white",
-          borderRadius: 6,
-        }}
-      >
-        Stop Narration
-      </button>
+      {isStoryGenerated && (
+        <>
+          {/* <button
+            onClick={stopSpeech}
+            style={{
+              padding: "10px 20px",
+              fontSize: 16,
+              backgroundColor: "#cc3300",
+              color: "white",
+              borderRadius: 6,
+              marginRight: 10,
+            }}
+          >
+            ⏹️ Stop
+          </button> */}
+
+          <button
+            onClick={togglePauseResume}
+            style={{
+              padding: "10px 20px",
+              fontSize: 16,
+              backgroundColor: "#999900",
+              color: "white",
+              borderRadius: 6,
+              marginRight: 10,
+            }}
+          >
+            {isPaused ? "▶️ Resume" : "⏸️ Pause"}
+          </button>
+
+          <button
+            onClick={downloadStory}
+            style={{
+              padding: "10px 20px",
+              fontSize: 16,
+              backgroundColor: "#2c7",
+              color: "white",
+              borderRadius: 6,
+              marginRight: 10,
+            }}
+          >
+            📥 Download
+          </button>
+
+          <button
+            onClick={clearAll}
+            style={{
+              padding: "10px 20px",
+              fontSize: 16,
+              backgroundColor: "#999",
+              color: "white",
+              borderRadius: 6,
+            }}
+          >
+            🧹 Clear
+          </button>
+        </>
+      )}
 
       {story && (
         <div style={{ marginTop: 24 }}>
