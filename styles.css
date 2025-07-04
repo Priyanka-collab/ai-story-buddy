@@ -36,12 +36,16 @@ h1 {
 }
 
 .instructions {
-  background: #fff8dc;
-  padding: 16px;
-  border: 3px dashed #ff9800;
-  border-radius: 12px;
+  background-color: #fff8dc;
+  padding: 12px;
+  border: 2px dashed #f39c12;
   margin-bottom: 20px;
+  border-radius: 10px;
+  font-size: 16px;
+  color: #333; /* <-- add this line */
+  font-weight: 600;
 }
+
 
 .controls {
   display: flex;
@@ -69,6 +73,8 @@ h1 {
   border: 2px solid #ffa726;
   border-radius: 10px;
   font-size: 16px;
+  background-color: #fff6e6; /* <-- light cheerful background */
+  color: #333; /* dark text */
 }
 
 .prompt-area button {
@@ -116,6 +122,7 @@ h1 {
   margin-top: 16px;
   background: #ffffffcc;
   padding: 20px;
+  color: #333; /* <-- add this */
   border-radius: 12px;
   width: 100%;
   box-sizing: border-box;
@@ -125,6 +132,7 @@ h1 {
   font-size: 18px;
   line-height: 1.6;
   margin-bottom: 12px;
+  font-family: "Comic Sans MS", cursive;
 }
 
 .story-image {
