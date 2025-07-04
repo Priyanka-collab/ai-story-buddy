@@ -21,11 +21,11 @@ export default function StoryWithImages() {
   const [inputsDisabled, setInputsDisabled] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isStoryGenerated, setIsStoryGenerated] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const openRouterKey = import.meta.env.VITE_OPENROUTER_API_KEY!;
   const unsplashAccessKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY!;
-  const recognitionRef = useRef<any>(null);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const getLangCode = (lang: string) =>
     lang === "hi" ? "hi-IN" : lang === "te" ? "te-IN" : "en-US";
@@ -33,27 +33,22 @@ export default function StoryWithImages() {
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
-
     const recognition = new SpeechRecognition();
     recognition.lang = getLangCode(language);
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
       setPrompt(transcript);
       setListening(false);
     };
-
     recognition.onerror = () => setListening(false);
     recognition.onend = () => setListening(false);
-
     recognitionRef.current = recognition;
   }, [language]);
 
   async function generateStoryAndImages() {
     if (!prompt.trim()) return;
-
     setInputsDisabled(true);
     setLoading(true);
     setStory("");
@@ -66,7 +61,6 @@ export default function StoryWithImages() {
       const storyPrompt = `
 You are a creative children's storyteller. Write a fun and imaginative story for a 6-year-old in ${langLabel}.
 Topic: ${prompt}
-
 Make the story at least 6 paragraphs long. 
 Use simple, playful language and break it into small, easy-to-read paragraphs.
 Add engaging moments and emotional depth (like surprise, fun, friendship, curiosity).
@@ -86,7 +80,6 @@ Add engaging moments and emotional depth (like surprise, fun, friendship, curios
 
       const storyData = await storyRes.json();
       if (!storyRes.ok) throw new Error(storyData?.error?.message || "Story generation failed.");
-
       const storyText = storyData.choices[0].message.content;
       setStory(storyText);
       setIsStoryGenerated(true);
@@ -107,12 +100,12 @@ Add engaging moments and emotional depth (like surprise, fun, friendship, curios
       }
 
       setImages(fetchedImages);
-
       const utterance = new SpeechSynthesisUtterance(storyText);
       utterance.lang = getLangCode(language);
       utterance.voice = speechSynthesis.getVoices().find(v => v.lang === utterance.lang) || null;
       utterance.onend = () => setIsPaused(false);
       utteranceRef.current = utterance;
+      speechSynthesis.cancel(); // ensure no other speech running
       speechSynthesis.speak(utterance);
     } catch (err: any) {
       alert(err.message);
@@ -122,21 +115,24 @@ Add engaging moments and emotional depth (like surprise, fun, friendship, curios
   }
 
   function stopSpeech() {
-    if (speechSynthesis.speaking) speechSynthesis.cancel();
+    if (speechSynthesis.speaking || speechSynthesis.paused) {
+      speechSynthesis.cancel();
+    }
     setIsPaused(false);
   }
 
   function togglePauseResume() {
-    if (speechSynthesis.speaking) {
-      if (speechSynthesis.paused) {
-        speechSynthesis.resume();
-        setIsPaused(false);
-      } else {
-        speechSynthesis.pause();
-        setIsPaused(true);
-      }
-    }
+  if (!utteranceRef.current) return;
+
+  if (speechSynthesis.speaking && !speechSynthesis.paused) {
+    speechSynthesis.pause();
+    setIsPaused(true);
+  } else if (speechSynthesis.paused) {
+    speechSynthesis.resume();
+    setIsPaused(false);
   }
+}
+
 
   function startListening() {
     if (recognitionRef.current) {
@@ -170,7 +166,6 @@ Add engaging moments and emotional depth (like surprise, fun, friendship, curios
     <div className="app-wrapper">
       <div className="story-container">
         <h1>🌈 AI Story Buddy 📚</h1>
-
         <div className="instructions">
           <strong>How to Use:</strong>
           <ul>
@@ -183,41 +178,32 @@ Add engaging moments and emotional depth (like surprise, fun, friendship, curios
         </div>
 
         <div className="controls">
-  <label>
-    🌍 Language:
-    <div className="dropdown-wrapper">
-      <select
-        value={language}
-        onChange={(e) => setLanguage(e.target.value)}
-        disabled={inputsDisabled || isStoryGenerated}
-      >
-        <option value="en">English</option>
-        <option value="hi">Hindi</option>
-        <option value="te">Telugu</option>
-      </select>
-    </div>
-  </label>
+          <label>
+            🌍 Language:
+            <div className="dropdown-wrapper">
+              <select value={language} onChange={(e) => setLanguage(e.target.value)} disabled={inputsDisabled || isStoryGenerated}>
+                <option value="en">English</option>
+                <option value="hi">Hindi</option>
+                <option value="te">Telugu</option>
+              </select>
+            </div>
+          </label>
 
-  <label>
-    🧠 Model:
-    <div className="dropdown-wrapper">
-      <select
-        value={model}
-        onChange={(e) => setModel(e.target.value)}
-        disabled={inputsDisabled || isStoryGenerated}
-      >
-        <option value="deepseek/deepseek-chat-v3-0324">DeepSeek (free)</option>
-        <option value="mistralai/mistral-7b-instruct">Mistral 7B</option>
-        <option value="nousresearch/nous-capybara-7b:free">Nous Capybara</option>
-        <option value="huggingfaceh4/zephyr-7b-beta">Zephyr 7B</option>
-        <option value="openchat/openchat-3.5-1210">OpenChat 3.5</option>
-        <option value="gryphe/mythomax-l2-13b">MythoMax L2</option>
-        <option value="neuralbeagle/neuralbeagle-7b">NeuralBeagle</option>
-      </select>
-    </div>
-  </label>
-</div>
-
+          <label>
+            🧠 Model:
+            <div className="dropdown-wrapper">
+              <select value={model} onChange={(e) => setModel(e.target.value)} disabled={inputsDisabled || isStoryGenerated}>
+                <option value="deepseek/deepseek-chat-v3-0324">DeepSeek (free)</option>
+                <option value="mistralai/mistral-7b-instruct">Mistral 7B</option>
+                <option value="nousresearch/nous-capybara-7b:free">Nous Capybara</option>
+                <option value="huggingfaceh4/zephyr-7b-beta">Zephyr 7B</option>
+                <option value="openchat/openchat-3.5-1210">OpenChat 3.5</option>
+                <option value="gryphe/mythomax-l2-13b">MythoMax L2</option>
+                <option value="neuralbeagle/neuralbeagle-7b">NeuralBeagle</option>
+              </select>
+            </div>
+          </label>
+        </div>
 
         <div className="prompt-area">
           <input
@@ -249,11 +235,7 @@ Add engaging moments and emotional depth (like surprise, fun, friendship, curios
               <React.Fragment key={i}>
                 <p>{para}</p>
                 {i < images.length && (
-                  <img
-                    src={images[i]}
-                    alt={`Illustration ${i + 1}`}
-                    className="story-image"
-                  />
+                  <img src={images[i]} alt={`Illustration ${i + 1}`} className="story-image" />
                 )}
               </React.Fragment>
             ))}
