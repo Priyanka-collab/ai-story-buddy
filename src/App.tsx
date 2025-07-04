@@ -20,28 +20,29 @@ export default function StoryWithImages() {
 
   const openRouterKey = import.meta.env.VITE_OPENROUTER_API_KEY!;
   const unsplashAccessKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY!;
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<any>(null);
 
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+useEffect(() => {
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  if (!SpeechRecognition) return;
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = language === "hi" ? "hi-IN" : "en-US";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+  const recognition = new SpeechRecognition();
+  recognition.lang = language === "hi" ? "hi-IN" : "en-US";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0][0].transcript;
-      setPrompt(transcript);
-      setListening(false);
-    };
+  recognition.onresult = (event: any) => {
+    const transcript = event.results[0][0].transcript;
+    setPrompt(transcript);
+    setListening(false);
+  };
 
-    recognition.onerror = () => setListening(false);
-    recognition.onend = () => setListening(false);
+  recognition.onerror = () => setListening(false);
+  recognition.onend = () => setListening(false);
 
-    recognitionRef.current = recognition;
-  }, [language]);
+  recognitionRef.current = recognition;
+}, [language]);
+
 
   async function generateStoryAndImages() {
     if (!prompt.trim()) return;
@@ -98,7 +99,7 @@ Topic: ${prompt}
 
       const utterance = new SpeechSynthesisUtterance(storyText);
       utterance.lang = language === "hi" ? "hi-IN" : "en-US";
-      utterance.voice = speechSynthesis.getVoices().find(v => v.lang === utterance.lang) || undefined;
+      utterance.voice = speechSynthesis.getVoices().find(v => v.lang === utterance.lang) || null;
       speechSynthesis.speak(utterance);
     } catch (err: any) {
       alert(err.message);
