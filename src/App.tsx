@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import "../styles.css";
 
 const stopwords = new Set(["in", "the", "a", "an", "and", "of", "on", "for", "to", "is"]);
 
@@ -13,7 +14,8 @@ export default function StoryWithImages() {
   const [prompt, setPrompt] = useState("");
   const [story, setStory] = useState("");
   const [images, setImages] = useState<string[]>([]);
-  const [language, setLanguage] = useState("en"); // 'en', 'hi', 'te'
+  const [language, setLanguage] = useState("en");
+  const [model, setModel] = useState("deepseek/deepseek-chat-v3-0324");
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [inputsDisabled, setInputsDisabled] = useState(false);
@@ -25,9 +27,8 @@ export default function StoryWithImages() {
   const recognitionRef = useRef<any>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  const getLangCode = (lang: string) => {
-    return lang === "hi" ? "hi-IN" : lang === "te" ? "te-IN" : "en-US";
-  };
+  const getLangCode = (lang: string) =>
+    lang === "hi" ? "hi-IN" : lang === "te" ? "te-IN" : "en-US";
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -71,7 +72,6 @@ Use simple, playful language and break it into small, easy-to-read paragraphs.
 Add engaging moments and emotional depth (like surprise, fun, friendship, curiosity).
 `;
 
-
       const storyRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -79,7 +79,7 @@ Add engaging moments and emotional depth (like surprise, fun, friendship, curios
           Authorization: `Bearer ${openRouterKey}`,
         },
         body: JSON.stringify({
-          model: "deepseek/deepseek-chat-v3-0324",
+          model,
           messages: [{ role: "user", content: storyPrompt }],
         }),
       });
@@ -126,14 +126,6 @@ Add engaging moments and emotional depth (like surprise, fun, friendship, curios
     setIsPaused(false);
   }
 
-  function startListening() {
-    if (recognitionRef.current) {
-      setListening(true);
-      recognitionRef.current.lang = getLangCode(language);
-      recognitionRef.current.start();
-    }
-  }
-
   function togglePauseResume() {
     if (speechSynthesis.speaking) {
       if (speechSynthesis.paused) {
@@ -143,6 +135,14 @@ Add engaging moments and emotional depth (like surprise, fun, friendship, curios
         speechSynthesis.pause();
         setIsPaused(true);
       }
+    }
+  }
+
+  function startListening() {
+    if (recognitionRef.current) {
+      setListening(true);
+      recognitionRef.current.lang = getLangCode(language);
+      recognitionRef.current.start();
     }
   }
 
@@ -167,119 +167,84 @@ Add engaging moments and emotional depth (like surprise, fun, friendship, curios
   const storyParagraphs = story.split(/\n+/).filter(p => p.trim());
 
   return (
-    <div style={{ maxWidth: 700, margin: "auto", padding: 20, fontFamily: "Arial" }}>
-      <h1>🎙️ AI Story Buddy 🌟</h1>
+    <div className="app-wrapper">
+      <div className="story-container">
+        <h1>🌈 AI Story Buddy 📚</h1>
 
-      <label>
-        Select Language:{" "}
-        <select
-          value={language}
-          onChange={(e) => setLanguage(e.target.value)}
-          disabled={inputsDisabled || isStoryGenerated}
-          style={{ padding: 6, marginBottom: 10 }}
-        >
-          <option value="en">English</option>
-          <option value="hi">Hindi</option>
-          <option value="te">Telugu</option>
-        </select>
-      </label>
+        <div className="instructions">
+          <strong>How to Use:</strong>
+          <ul>
+            <li>Select your preferred language and AI model.</li>
+            <li>Type or speak your story topic using 🎤.</li>
+            <li>Click “Generate Story” to hear and see your tale!</li>
+            <li>Use ⏸️/▶️ to pause or resume narration.</li>
+            <li>Download or clear when you're done!</li>
+          </ul>
+        </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-        <input
-          type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="e.g., A monkey and a mouse adventure"
-          disabled={inputsDisabled}
-          style={{ flex: 1, padding: 8, fontSize: 16 }}
-        />
-        <button
-          onClick={startListening}
-          disabled={inputsDisabled || listening}
-          style={{ fontSize: 20, padding: "8px 12px", cursor: "pointer" }}
-        >
-          🎤
-        </button>
-      </div>
-
-      <button
-        onClick={generateStoryAndImages}
-        disabled={!prompt.trim() || loading || inputsDisabled}
-        style={{
-          padding: "10px 20px",
-          fontSize: 16,
-          backgroundColor: "#007acc",
-          color: "white",
-          borderRadius: 6,
-          marginRight: 10,
-        }}
+        <div className="controls">
+  <label>
+    🌍 Language:
+    <div className="dropdown-wrapper">
+      <select
+        value={language}
+        onChange={(e) => setLanguage(e.target.value)}
+        disabled={inputsDisabled || isStoryGenerated}
       >
-        {loading ? "Generating..." : "Generate Story"}
-      </button>
+        <option value="en">English</option>
+        <option value="hi">Hindi</option>
+        <option value="te">Telugu</option>
+      </select>
+    </div>
+  </label>
 
-      {isStoryGenerated && (
-        <>
-          {/* <button
-            onClick={stopSpeech}
-            style={{
-              padding: "10px 20px",
-              fontSize: 16,
-              backgroundColor: "#cc3300",
-              color: "white",
-              borderRadius: 6,
-              marginRight: 10,
-            }}
-          >
-            ⏹️ Stop
-          </button> */}
+  <label>
+    🧠 Model:
+    <div className="dropdown-wrapper">
+      <select
+        value={model}
+        onChange={(e) => setModel(e.target.value)}
+        disabled={inputsDisabled || isStoryGenerated}
+      >
+        <option value="deepseek/deepseek-chat-v3-0324">DeepSeek (free)</option>
+        <option value="mistralai/mistral-7b-instruct">Mistral 7B</option>
+        <option value="nousresearch/nous-capybara-7b:free">Nous Capybara</option>
+        <option value="huggingfaceh4/zephyr-7b-beta">Zephyr 7B</option>
+        <option value="openchat/openchat-3.5-1210">OpenChat 3.5</option>
+        <option value="gryphe/mythomax-l2-13b">MythoMax L2</option>
+        <option value="neuralbeagle/neuralbeagle-7b">NeuralBeagle</option>
+      </select>
+    </div>
+  </label>
+</div>
 
-          <button
-            onClick={togglePauseResume}
-            style={{
-              padding: "10px 20px",
-              fontSize: 16,
-              backgroundColor: "#999900",
-              color: "white",
-              borderRadius: 6,
-              marginRight: 10,
-            }}
-          >
-            {isPaused ? "▶️ Resume" : "⏸️ Pause"}
-          </button>
 
-          <button
-            onClick={downloadStory}
-            style={{
-              padding: "10px 20px",
-              fontSize: 16,
-              backgroundColor: "#2c7",
-              color: "white",
-              borderRadius: 6,
-              marginRight: 10,
-            }}
-          >
-            📥 Download
-          </button>
+        <div className="prompt-area">
+          <input
+            type="text"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="e.g., A giraffe who loved rainbows"
+            disabled={inputsDisabled}
+          />
+          <button onClick={startListening} disabled={inputsDisabled || listening}>🎤</button>
+        </div>
 
-          <button
-            onClick={clearAll}
-            style={{
-              padding: "10px 20px",
-              fontSize: 16,
-              backgroundColor: "#999",
-              color: "white",
-              borderRadius: 6,
-            }}
-          >
-            🧹 Clear
-          </button>
-        </>
-      )}
+        <button className="generate-btn" onClick={generateStoryAndImages} disabled={!prompt.trim() || loading || inputsDisabled}>
+          {loading ? "✨ Generating..." : "📖 Generate Story"}
+        </button>
 
-      {story && (
-        <div style={{ marginTop: 24 }}>
-          <h2>Story:</h2>
-          <div style={{ fontSize: 18, lineHeight: 1.6 }}>
+        {isStoryGenerated && (
+          <div className="action-buttons">
+            <button onClick={togglePauseResume}>{isPaused ? "▶️ Resume" : "⏸️ Pause"}</button>
+            <button onClick={downloadStory}>📥 Download</button>
+            <button onClick={clearAll}>🧹 Clear</button>
+          </div>
+        )}
+
+        {story && (
+          <div className="story-display">
+            <h2>📚 Your Story:</h2>
             {storyParagraphs.map((para, i) => (
               <React.Fragment key={i}>
                 <p>{para}</p>
@@ -287,20 +252,14 @@ Add engaging moments and emotional depth (like surprise, fun, friendship, curios
                   <img
                     src={images[i]}
                     alt={`Illustration ${i + 1}`}
-                    style={{
-                      width: "100%",
-                      maxHeight: 256,
-                      borderRadius: 8,
-                      marginBottom: 20,
-                      objectFit: "cover",
-                    }}
+                    className="story-image"
                   />
                 )}
               </React.Fragment>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
